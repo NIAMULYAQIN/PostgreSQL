@@ -1,0 +1,59 @@
+-------------------Companies with Second Semester Sales Exceeding 8 Million in 2020------------------- 
+SELECT user_dataset.company, 
+  SUM(CASE WHEN EXTRACT(MONTH FROM flight_dataset.date) < 7 THEN flight_dataset.price ELSE 0 END) AS sales_first_semester, 
+  SUM(CASE WHEN EXTRACT(MONTH FROM flight_dataset.date) > 6 THEN flight_dataset.price ELSE 0 END) AS sales_second_semester
+FROM flight_dataset
+JOIN user_dataset ON flight_dataset.user_id = user_dataset.user_id
+WHERE EXTRACT(YEAR FROM flight_dataset.date) = 2020
+GROUP BY user_dataset.company
+HAVING SUM(CASE WHEN EXTRACT(MONTH FROM flight_dataset.date) > 6 THEN flight_dataset.price ELSE 0 END) > 8000000
+-------------------------------------------------------------------------------------------------------------
+
+-----------------Identification of Users with the Most Frequent Travel Routes Based on Price-----------------
+WITH cte1 AS (
+  SELECT DISTINCT "from", "to", price
+  FROM flight_dataset
+), 
+cte2 AS (
+  SELECT "from", "to", price, ROW_NUMBER() OVER (PARTITION BY "from", "to" ORDER BY price DESC) AS ranking
+  FROM cte1
+),
+cte3 AS (
+  SELECT fd.user_id, cte2.ranking, COUNT(fd.travel_id) AS total_travel
+  FROM flight_dataset AS fd
+  LEFT JOIN cte2 ON cte2."from" = fd."from" AND cte2."to" = fd."to" AND cte2.price = fd.price
+  GROUP BY fd.user_id, cte2.ranking
+),
+cte4 AS (
+  SELECT cte3.*, MAX(total_travel) OVER (PARTITION BY user_id) AS max_transaction
+  FROM cte3
+)
+SELECT u.*, cte4.ranking
+FROM user_dataset AS u
+INNER JOIN cte4 ON u.user_id = cte4.user_id AND cte4.total_travel = cte4.max_transaction;
+-------------------------------------------------------------------------------------------------------------
+
+---------------------Users with Sales Decrease of More Than 10,000 between 2020 and 2023----------------------
+SELECT 
+    user_dataset.name, 
+    flight_dataset.user_id AS customer_id, 
+    SUM(CASE WHEN EXTRACT(YEAR FROM date) = 2020 THEN price ELSE 0 END) AS sales_2020,
+    SUM(CASE WHEN EXTRACT(YEAR FROM date) = 2021 THEN price ELSE 0 END) AS sales_2021,
+    SUM(CASE WHEN EXTRACT(YEAR FROM date) = 2022 THEN price ELSE 0 END) AS sales_2022,
+    SUM(CASE WHEN EXTRACT(YEAR FROM date) = 2023 THEN price ELSE 0 END) AS sales_2023
+FROM 
+    flight_dataset 
+JOIN 
+    user_dataset ON flight_dataset.user_id = user_dataset.user_id
+WHERE 
+    EXTRACT(YEAR FROM date) BETWEEN 2020 AND 2023
+GROUP BY 
+    user_dataset.name, 
+    flight_dataset.user_id
+HAVING 
+    SUM(CASE WHEN EXTRACT(YEAR FROM date) = 2020 THEN price ELSE 0 END) 
+    - SUM(CASE WHEN EXTRACT(YEAR FROM date) = 2023 THEN price ELSE 0 END) 
+    > 10000
+ORDER BY 
+    user_dataset.name
+-------------------------------------------------------------------------------------------------------------
